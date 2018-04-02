@@ -1,12 +1,108 @@
 package com.codingame.game;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Matcher;
+
+import org.apache.logging.log4j.CloseableThreadContext.Instance;
+
 import com.codingame.gameengine.core.AbstractPlayer;
+import com.codingame.gameengine.core.AbstractPlayer.TimeoutException;
+import com.codingame.gameengine.module.entities.Text;
+
+import cards.Goods;
+import cards.Camel;
 
 public class Player extends AbstractPlayer {
+	
+	public List<Goods> hand = new ArrayList<Goods>();
+	public int camels = 0;
+	public Text message;
+	
     @Override
     public int getExpectedOutputLines() {
-        // Returns the number of expected lines of outputs for a player
-
-        // TODO: Replace the returned value with a valid number. Most of the time the value is 1. 
-        return -1;
+    	return 1;
+    }
+    
+    public void getAction() throws TimeoutException, InvalidAction {
+    	
+        try {
+        	String playerOutput = getOutputs().get(0);
+            String[] splittedOutput = playerOutput.split(";", 2);
+        	
+            // in game message
+        	String msg = splittedOutput.length > 1 ? splittedOutput[1] : "";
+        	if (msg.length() < 20) message.setText(msg);
+        	else message.setText(msg.substring(0, 17) + "...");
+        	
+        	// player command
+        	String[] outputValues = splittedOutput[0].split(" ");
+        	String command = outputValues[0];
+        	int arguments = outputValues.length;
+        	
+        	if (command.equals("TAKE") && arguments > 2) {
+        		take(outputValues);
+        	} else if (command.equals("SELL") && arguments == 2) {
+        		sell(outputValues[1]);
+            } else if(command.equals("TRADE") && arguments > 2){
+            	trade(outputValues);
+            } else {
+                throw new InvalidAction("Invalid output.");
+            }
+        } catch (TimeoutException | InvalidAction e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InvalidAction("Invalid output.");
+        }
+    }
+    
+    public void take(String[] args) {
+    	if ("CAMEL".equals(args[1])) {
+    		int nbCamels = (int) Referee.board.pickCamels(args);
+    		if (nbCamels != 0) {
+        		camels += nbCamels;
+    		} else {
+    			// take not allowed
+    		}
+    	} else if (hand.size() < 7) {
+    		Goods g = Referee.board.pickGoods(args);
+    		if (g != null) {
+    			hand.add(g);
+    		} else {
+    			// take not allowed
+    		}
+    	} else {
+    		// take not allowed
+    	}
+    }
+    
+    public void sell(String type) {
+    	long nbCardsToSell = hand.stream()
+    			.filter(c -> c.getType().equals(type) && c instanceof Goods)
+    			.count();
+    	if (nbCardsToSell > 0) {
+    		
+    	} else {
+    		// sell not allowed
+    	}
+    }
+    
+    public void trade(String[] args) {
+    	String[] cards;
+    	if ("CAMEL".equals(args[1])) {
+    		cards = Arrays.copyOfRange(args, 2, args.length-1);
+    		if (cards.length <= camels) {
+    			Referee.board.tradeWithCamels(cards);
+    		} else {
+    			// not enough camels to trade
+    		}
+    	} else {
+    		cards = Arrays.copyOfRange(args, 1, args.length-1);
+    		if (cards.length%2 == 0 && cards.length <= 10) {
+    			Referee.board.tradeWithGoods(cards);
+    		} else {
+    			// trade not allowed
+    		}
+    	}
     }
 }
