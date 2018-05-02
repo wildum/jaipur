@@ -16,7 +16,7 @@ import cards.Camel;
 public class Player extends AbstractPlayer {
 	
 	public List<Goods> hand = new ArrayList<Goods>();
-	public int camels = 0;
+	public List<Camel> camels = new ArrayList<Camel>();
 	public Text message;
 	
     @Override
@@ -57,20 +57,11 @@ public class Player extends AbstractPlayer {
     }
     
     public void take(String[] args) {
+    	String[] cards = Arrays.copyOfRange(args, 2, args.length);
     	if ("CAMEL".equals(args[1])) {
-    		int nbCamels = (int) Referee.board.pickCamels(args);
-    		if (nbCamels != 0) {
-        		camels += nbCamels;
-    		} else {
-    			// take not allowed
-    		}
+    		Referee.board.pickCamels(cards, camels);
     	} else if (hand.size() < 7) {
-    		Goods g = Referee.board.pickGoods(args);
-    		if (g != null) {
-    			hand.add(g);
-    		} else {
-    			// take not allowed
-    		}
+    		Referee.board.pickGoods(args[1], cards, hand);
     	} else {
     		// take not allowed
     	}
@@ -88,21 +79,11 @@ public class Player extends AbstractPlayer {
     }
     
     public void trade(String[] args) {
-    	String[] cards;
-    	if ("CAMEL".equals(args[1])) {
-    		cards = Arrays.copyOfRange(args, 2, args.length-1);
-    		if (cards.length <= camels) {
-    			Referee.board.tradeWithCamels(cards);
-    		} else {
-    			// not enough camels to trade
-    		}
-    	} else {
-    		cards = Arrays.copyOfRange(args, 1, args.length-1);
-    		if (cards.length%2 == 0 && cards.length <= 10) {
-    			Referee.board.tradeWithGoods(cards);
-    		} else {
-    			// trade not allowed
-    		}
-    	}
+    	String[] cards = Arrays.copyOfRange(args, 1, args.length);
+		if (cards.length%2 == 0 && cards.length <= 10) {
+			Referee.board.tradeCards(cards, hand, camels);
+		} else {
+			// trade not allowed
+		}
     }
 }

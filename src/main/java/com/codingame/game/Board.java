@@ -2,8 +2,11 @@ package com.codingame.game;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import cards.Camel;
 import cards.Card;
@@ -20,80 +23,122 @@ public class Board {
 		this.flippedCards = new ArrayList<Card>();
 	}
 	
-	public long pickCamels(String[] args) {
-		int camels = 0;
-		if (args.length - 2  == this.flippedCards.stream().filter(u -> u instanceof Camel).count()) {
-			this.flippedCards.removeIf(u -> u instanceof Camel);
-			camels = nbCardsFlipped - this.flippedCards.size();
-			List<Card> cardsToRefill = cardsRefill(args);
-			if (cardsToRefill.size() == args.length - 2) {
-				for (Card c : cardsToRefill)
-					this.flippedCards.add(c);
+	public void pickCamels(String[] cards, List<Camel> camels) {
+		List<Camel> boardCamels = this.flippedCards.stream().filter(u -> u instanceof Camel).map(u -> (Camel) u).collect(Collectors.toList());
+		if (cards.length  == boardCamels.size()) {
+			List<Card> cardsToRefill = cardsRefill(cards);
+			if (cardsToRefill != null) {
+				this.flippedCards.removeIf(u -> u instanceof Camel);
+				this.flippedCards.addAll(cardsToRefill);
 			} else {
-				// refill error
-				for (Card c : cardsToRefill)
-					this.deck.getCardsMap().compute(c.getType(), (k, v) -> v++);
-				camels = 0;
+				// error refill
 			}
 		} else {
-			// not the good number of args
+			// not the good number of cards
 		}
-		return camels;
 	}
 	
-	public Goods pickGoods(String[] args) {
-		Goods g = null;
-		Integer index = Integer.parseInt(args[1]);
-		if (index >= 0 && index < nbCardsFlipped) {
-			Card c = this.flippedCards.get(index);
+	public void pickGoods(String choice, String[] cards, List<Goods> hand) {
+		Optional<Card> oc = this.flippedCards.stream().filter(u -> u.getType().equals(choice)).findFirst();
+		if (oc.isPresent()) {
+			Card c = oc.get();
 			if (c instanceof Goods) {
-				if (args.length == 3) {
-					Optional<Card> r = cardsRefill(args).stream().findFirst();
+				if (cards.length == 1) {
+					Optional<Card> r = cardsRefill(cards).stream().findFirst();
 					if (r.isPresent()) {
 						this.flippedCards.remove(c);
 						this.flippedCards.add(r.get());
-						g = (Goods) c;
+						hand.add((Goods) c);
 					} else {
 						// error can't refill
 					}
 				} else {
 					// not the good number of args
 				}
+			} else {
+				// is not a goods
 			}
-		}
-		return g;
-	}
-	
-	public void tradeWithCamels(String[] cardsWanted) {
-		if (cardsWanted.length <= camels) {
-			tradeCards(cardsWanted);
 		} else {
-			// not enough camels to trade
+			// card type not in the list
 		}
 	}
 	
-	public void tradeWithGoods(String[] args) {
+	/*
+	 * - trade avec les types
+	 * - set de l'un dans l'autre -> pas d'intersection!
+	 * - check la taille du deck est bien 6
+	 */
+	public void tradeCards(String[] cards, List<Goods> hand, List<Camel> camels) {
+		List<String> cardsOut = Arrays.asList(Arrays.copyOfRange(cards, 0, cards.length/2));
+		List<String> cardsIn = Arrays.asList(Arrays.copyOfRange(cards, cards.length/2, cards.length));
 		
-	}
-	
-	private void tradeCards(String[] cardsWanted) {
-		
+		List<String> intersection = new ArrayList<>(cardsOut);
+		intersection.retainAll(cardsIn);
+		if (intersection.isEmpty()) {
+			if (allowMoveWithHand(cardsOut, hand, camels) && allowMoveWithDeck(cardsIn)) {
+				if (hand.size() - cardsOut.size() + cardsOut.stream().filter(c -> c.equals("CAMEL")).count() + cardsIn.size() - cardsIn.stream().filter(c -> c.equals("CAMEL")).count() <= 7) {
+					
+				} else {
+					// hand size overflow
+				}
+			} else {
+				// invalid cards
+			}
+		} else {
+			// can't trade the same type of card
+		}
 	}
 	
 	public List<Card> cardsRefill(String[] args) {
 		List<Card> cardsToRefill = new ArrayList<Card>();
-		for (int i = 2; i < args.length; i++) {
-			Integer n = this.getDeck().getCardsMap().get(args[i]);
-			if (n != null && n != 0) {
-				if ("CAMEL".equals(args[i])) {
-					cardsToRefill.add(new Camel(args[i]));
-				} else {
-					cardsToRefill.add(new Goods(args[i]));
-				}
-				this.getDeck().getCardsMap().compute(args[i], (k, v) -> v--);
+		List<String> cards = Arrays.asList(args);
+		if(!allowMoveWithDeck(cards)) return null;
+		for (String type : cards) {
+			if ("CAMEL".equals(type)) {
+				cardsToRefill.add(new Camel(type, Card.nextId++));
+			} else {
+				cardsToRefill.add(new Goods(type, Card.nextId++));
 			}
+			this.getDeck().getCardsMap().compute(type, (k, v) -> v--);
 		}
 		return cardsToRefill;
+	}
+	
+	public boolean allowMoveWithDeck(List<String> cardsInit) {
+		List<String> cards = new ArrayList<>(cardsInit);
+		while (!cards.isEmpty()) {
+			String t = cards.get(0);
+			int prevSize = cards.size();
+			cards = cards.stream().filter(u -> !u.equals(t)).collect(Collectors.toList());
+			Integer n = this.getDeck().getCardsMap().get(t);
+			if (n == null || n < prevSize - cards.size()) {
+				// error cards not available
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	public boolean allowMoveWithHand(List<String> cardsInit, List<Goods> hand, List<Camel> camels) {
+		List<String> handString = hand.stream().map(u -> u.getType()).collect(Collectors.toList());
+		List<String> cards = new ArrayList<>(cardsInit);
+		int nbCamels = camels.size();
+		while (!cards.isEmpty()) {
+			String t = cards.get(0);
+			if ("CAMEL".equals(t)) {
+				if (--nbCamels < 0)
+					return false;
+			} else {
+				int prevSize = cards.size();
+				cards = cards.stream().filter(u -> !u.equals(t)).collect(Collectors.toList());
+				Integer n = Collections.frequency(handString, t);
+				if (n < prevSize - cards.size()) {
+					// error cards not available
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	public Deck getDeck() {
